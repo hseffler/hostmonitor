@@ -319,16 +319,18 @@ func (m *Monitor) ManageQueues() {
 	}
 }
 
-// handleError handles ping failures
+// handleError handles connection failures
 func (m *Monitor) handleError(target string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	port := m.ports[target]
 	m.errCounter[target]++
 	m.logger.WithFields(logrus.Fields{
 		"target": target,
+		"port":   port,
 		"status": "FAILED",
-	}).Error("❌ Ping failed")
+	}).Error("❌ Connect failed")
 
 	if m.errCounter[target] == 1 {
 		m.timeDown[target] = time.Now().Format("2006-01-02 15:04:05")
@@ -339,15 +341,17 @@ func (m *Monitor) handleError(target string) {
 	}
 }
 
-// handleRecovery handles successful pings
+// handleRecovery handles successful connections
 func (m *Monitor) handleRecovery(target string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	port := m.ports[target]
 	m.logger.WithFields(logrus.Fields{
 		"target": target,
+		"port":   port,
 		"status": "OK",
-	}).Info("✅ Ping successful")
+	}).Info("✅ Connect successful")
 
 	if m.errCounter[target] > m.tolerance {
 		m.timeUp[target] = time.Now().Format("2006-01-02 15:04:05")
