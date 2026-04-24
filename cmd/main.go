@@ -143,7 +143,7 @@ func NewMonitor(configFile string) (*Monitor, error) {
 		timeUp:         make(map[string]string),
 		qDown:          []string{},
 		qUp:            []string{},
-		apiURL:         "https://api.telegram.org/bot",
+		apiURL:         "https://api.telegram.org/bot" + config.Telegram.Token,
 		logFile:        logFile,
 		logger:        logger,
 	}
@@ -155,8 +155,6 @@ func NewMonitor(configFile string) (*Monitor, error) {
 			return nil, err
 		}
 	}
-
-	monitor.apiURL += config.Telegram.Token
 	return monitor, nil
 }
 
