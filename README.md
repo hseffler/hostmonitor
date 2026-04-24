@@ -137,7 +137,7 @@ After=network.target
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/local/bin/hostmonitor
+ExecStart=/opt/hostmonitor/hostmonitor
 Restart=always
 RestartSec=30
 

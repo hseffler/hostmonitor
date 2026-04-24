@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/opt/hostmonitor
-ExecStart=/usr/local/bin/hostmonitor
+ExecStart=/opt/hostmonitor/hostmonitor
 Restart=always
 RestartSec=5s
 

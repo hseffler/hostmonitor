@@ -11,8 +11,16 @@ settings:
   interval: 30                    # Seconds between checks
   log_file: "/var/log/hostmonitor.log"  # Path to log file
 
+# Ping settings (defaults for all targets)
+ping:
+  count: 3                       # Number of ping attempts per check
+  timeout: 3                     # Timeout in seconds for each ping attempt
+  port: 80                       # Default TCP port to connect to
+
 # Targets to monitor (hostnames or IP addresses)
+# Each target can optionally specify a port (defaults to ping.port)
 targets:
-  - "elli.xion.owl.de"
-  - "bresser.xion.owl.de"
-  - "i.xion.owl.de"
+  - host: "elli.xion.owl.de"
+  - host: "bresser.xion.owl.de"
+    port: 5000
+  - host: "i.xion.owl.de"

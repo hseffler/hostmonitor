@@ -15,6 +15,12 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// TargetConfig holds configuration for a single target
+type TargetConfig struct {
+	Host string `yaml:"host"`
+	Port int    `yaml:"port"`
+}
+
 // Config holds the configuration from the YAML file
 type Config struct {
 	Telegram struct {
@@ -26,10 +32,11 @@ type Config struct {
 		Interval  int    `yaml:"interval"`
 		LogFile   string `yaml:"log_file"`
 	} `yaml:"settings"`
-	Targets []string `yaml:"targets"`
+	Targets []TargetConfig `yaml:"targets"`
 	Ping    struct {
 		Count   int `yaml:"count"`
 		Timeout int `yaml:"timeout"`
+		Port    int `yaml:"port"`
 	} `yaml:"ping"`
 }
 
@@ -40,6 +47,8 @@ type Monitor struct {
 	timer           int
 	pingCount       int
 	pingTimeout     int
+	defaultPort     int
+	ports           map[string]int
 	errCounter       map[string]int
 	timeDown         map[string]string
 	timeUp           map[string]string
@@ -82,6 +91,7 @@ func main() {
 		"tolerance": monitor.tolerance,
 		"interval":   monitor.timer,
 		"targets":    len(monitor.config.Targets),
+		"default_port": monitor.defaultPort,
 	}).Info("⚙️ Monitor configuration loaded")
 
 	// Main loop
@@ -116,6 +126,9 @@ func NewMonitor(configFile string) (*Monitor, error) {
 	if config.Ping.Timeout == 0 {
 		config.Ping.Timeout = 3
 	}
+	if config.Ping.Port == 0 {
+		config.Ping.Port = 80
+	}
 
 	// Set up logrus logger
 	logger := logrus.New()
@@ -132,12 +145,24 @@ func NewMonitor(configFile string) (*Monitor, error) {
 	}
 	logger.SetOutput(logFile)
 	
+	// Build port map from targets
+	ports := make(map[string]int)
+	for _, target := range config.Targets {
+		port := target.Port
+		if port == 0 {
+			port = config.Ping.Port
+		}
+		ports[target.Host] = port
+	}
+
 	monitor := &Monitor{
 		config:        *config,
 		tolerance:     config.Settings.Tolerance,
 		timer:         config.Settings.Interval,
 		pingCount:     config.Ping.Count,
 		pingTimeout:   config.Ping.Timeout,
+		defaultPort:   config.Ping.Port,
+		ports:         ports,
 		errCounter:     make(map[string]int),
 		timeDown:       make(map[string]string),
 		timeUp:         make(map[string]string),
@@ -241,13 +266,14 @@ func (m *Monitor) send(message string, parseMode string) error {
 func (m *Monitor) notify(target, status string) error {
 	var msg string
 	targetEscaped := escapeMarkdownV2(target)
+	port := m.ports[target]
 	
 	if status == "down" {
-		msg = fmt.Sprintf("🚨 *🔴 HOST DOWN* 🚨\n\n📍 *Host:* `%s`\n🕒 *Last seen:* `%s`\n\n⚠️ *Status:* Host is unreachable via TCP port 80",
-			targetEscaped, m.timeDown[target])
+		msg = fmt.Sprintf("🚨 *🔴 HOST DOWN* 🚨\n\n📍 *Host:* `%s`\n🕒 *Last seen:* `%s`\n\n⚠️ *Status:* Host is unreachable via TCP port %d",
+			targetEscaped, m.timeDown[target], port)
 	} else if status == "up" {
-		msg = fmt.Sprintf("✅ *🟢 HOST BACK UP* ✅\n\n📍 *Host:* `%s`\n🕒 *Recovered at:* `%s`\n\n✨ *Status:* Connection restored",
-			targetEscaped, m.timeUp[target])
+		msg = fmt.Sprintf("✅ *🟢 HOST BACK UP* ✅\n\n📍 *Host:* `%s`\n🕒 *Recovered at:* `%s`\n✨ *Status:* Connection restored on TCP port %d",
+			targetEscaped, m.timeUp[target], port)
 	}
 
 	err := m.send(msg, "MarkdownV2")
@@ -331,31 +357,35 @@ func (m *Monitor) handleRecovery(target string) {
 	m.errCounter[target] = 0
 }
 
-// pingTarget pings a single target using TCP connect (port 80) as an alternative to ICMP
-func (m *Monitor) pingTarget(target string) bool {
+// pingTarget pings a single target using TCP connect as an alternative to ICMP
+func (m *Monitor) pingTarget(host string, port int) bool {
 	startTime := time.Now()
 	m.logger.WithFields(logrus.Fields{
-		"target": target,
+		"target": host,
+		"port":   port,
 		"attempt": 1,
 		"total_attempts": m.pingCount,
 	}).Debug("📡 Starting ping attempt")
 	
 	// Try to resolve the hostname first
 	m.logger.WithFields(logrus.Fields{
-		"target": target,
+		"target": host,
+		"port":   port,
 	}).Debug("🔍 Resolving hostname")
 	
-	_, err := net.ResolveIPAddr("ip4", target)
+	_, err := net.ResolveIPAddr("ip4", host)
 	if err != nil {
 		m.logger.WithFields(logrus.Fields{
-			"target": target,
+			"target": host,
+			"port":   port,
 			"error":   err,
 		}).Error("❌ DNS resolution failed")
 		return false
 	}
 	
 	m.logger.WithFields(logrus.Fields{
-		"target": target,
+		"target": host,
+		"port":   port,
 	}).Debug("✅ Hostname resolved successfully")
 
 	successCount := 0
@@ -363,16 +393,18 @@ func (m *Monitor) pingTarget(target string) bool {
 	for i := 0; i < m.pingCount; i++ {
 		attemptStart := time.Now()
 		m.logger.WithFields(logrus.Fields{
-			"target": target,
+			"target": host,
+			"port":   port,
 			"attempt": i + 1,
 			"timeout": m.pingTimeout,
-		}).Debug("🔌 Attempting TCP connection to port 80")
+		}).Debug("🔌 Attempting TCP connection")
 		
-		// Try to establish a TCP connection to port 80 (HTTP)
-		conn, err := net.DialTimeout("tcp", net.JoinHostPort(target, "80"), time.Duration(m.pingTimeout)*time.Second)
+		// Try to establish a TCP connection
+		conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, fmt.Sprintf("%d", port)), time.Duration(m.pingTimeout)*time.Second)
 		if err != nil {
 			m.logger.WithFields(logrus.Fields{
-				"target": target,
+				"target": host,
+				"port":   port,
 				"attempt": i + 1,
 				"error":   err,
 				"duration": time.Since(attemptStart).Seconds(),
@@ -385,7 +417,8 @@ func (m *Monitor) pingTarget(target string) bool {
 		conn.Close()
 		
 		m.logger.WithFields(logrus.Fields{
-			"target": target,
+			"target": host,
+			"port":   port,
 			"attempt": i + 1,
 			"duration": time.Since(attemptStart).Seconds(),
 		}).Debug("✅ TCP connection successful")
@@ -395,7 +428,8 @@ func (m *Monitor) pingTarget(target string) bool {
 	totalDuration := time.Since(startTime).Seconds()
 	if successCount > 0 {
 		m.logger.WithFields(logrus.Fields{
-			"target": target,
+			"target": host,
+			"port":   port,
 			"success": true,
 			"attempts": successCount,
 			"total_attempts": m.pingCount,
@@ -403,7 +437,8 @@ func (m *Monitor) pingTarget(target string) bool {
 		}).Debug("✅ Ping completed successfully")
 	} else {
 		m.logger.WithFields(logrus.Fields{
-			"target": target,
+			"target": host,
+			"port":   port,
 			"success": false,
 			"attempts": m.pingCount,
 			"duration": totalDuration,
@@ -414,12 +449,16 @@ func (m *Monitor) pingTarget(target string) bool {
 }
 
 // PingMonitor pings all targets and handles results
-func (m *Monitor) PingMonitor(targets []string) {
-	for _, target := range targets {
-		if m.pingTarget(target) {
-			m.handleRecovery(target)
+func (m *Monitor) PingMonitor(targets []TargetConfig) {
+	for _, tc := range targets {
+		port := tc.Port
+		if port == 0 {
+			port = m.defaultPort
+		}
+		if m.pingTarget(tc.Host, port) {
+			m.handleRecovery(tc.Host)
 		} else {
-			m.handleError(target)
+			m.handleError(tc.Host)
 		}
 	}
 }
