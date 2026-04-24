@@ -7,7 +7,7 @@ BUILD_DIR := build
 EXAMPLE_CONFIG_FILE := hostmonitor.yaml.example
 
 # Install variables
-INSTALL_DIR := /usr/local/bin
+INSTALL_DIR := /opt/hostmonitor
 CONFIG_DIR := /opt/hostmonitor
 SYSTEMD_DIR := /etc/systemd/system
 SERVICE_FILE := hostmonitor.service
@@ -44,7 +44,7 @@ install:
 	@mkdir -p $(CONFIG_DIR)
 	cp $(BUILD_DIR)/$(BINARY_NAME) $(INSTALL_DIR)/$(BINARY_NAME)
 	cp $(BINARY_NAME).service $(SYSTEMD_DIR)/$(SERVICE_FILE)
-	cp $(EXAMPLE_CONFIG_FILE) $(CONFIG_DIR)/hostmonitor.yaml
+	test -f $(CONFIG_DIR)/hostmonitor.yaml || cp $(EXAMPLE_CONFIG_FILE) $(CONFIG_DIR)/hostmonitor.yaml
 	chmod +x $(INSTALL_DIR)/$(BINARY_NAME)
 	systemctl daemon-reload
 	systemctl enable $(BINARY_NAME).service
