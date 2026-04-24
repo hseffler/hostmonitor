@@ -1,0 +1,18 @@
+# Host Monitor Configuration (YAML format)
+
+# Telegram bot configuration (replace with your actual credentials)
+telegram:
+  token: "YOUR_TELEGRAM_BOT_TOKEN"
+  chat_id: "YOUR_CHAT_ID"
+
+# Monitoring settings
+settings:
+  tolerance: 5                    # Number of failures before notification
+  interval: 30                    # Seconds between checks
+  log_file: "/var/log/hostmonitor.log"  # Path to log file
+
+# Targets to monitor (hostnames or IP addresses)
+targets:
+  - "elli.xion.owl.de"
+  - "bresser.xion.owl.de"
+  - "i.xion.owl.de"

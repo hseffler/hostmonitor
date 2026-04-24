@@ -1,0 +1,21 @@
+[Unit]
+Description=Host Monitor Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/hostmonitor
+ExecStart=/usr/local/bin/hostmonitor
+Restart=always
+RestartSec=5s
+
+# Configuration
+Environment=HOSTMONITOR_CONFIG=/opt/hostmonitor/hostmonitor.yaml
+
+# Logging
+StandardOutput=file:/var/log/hostmonitor.log
+StandardError=file:/var/log/hostmonitor.error.log
+
+[Install]
+WantedBy=multi-user.target
