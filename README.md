@@ -77,7 +77,6 @@ telegram:
 settings:
   tolerance: 5                    # Number of failures before notification
   interval: 30                    # Seconds between checks
-  log_file: "/var/log/hostmonitor.log"  # Path to log file
 
 # Targets to monitor (hostnames or IP addresses)
 targets:
@@ -167,7 +166,7 @@ sudo journalctl -u hostmonitor -f
 
 ## Logging
 
-Logs are written to `/var/log/hostmonitor.log` with timestamps and include both informational messages and errors.
+Logs are written to journald (via stdout) when running as a systemd service. Use `journalctl -u hostmonitor -f` to view logs.
 
 ## License
 

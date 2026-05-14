@@ -43,9 +43,9 @@ This document captures the current state of the host monitor project after the G
 - **Queue system**: Manages notification queues to avoid flooding
 
 ### 5. Logging
-- **Configurable log file**: Defaults to `/var/log/hostmonitor.log`
+- **Journald integration**: Logs to systemd journal via stdout
 - **Detailed logging**: Timestamps, success/failure messages
-- **Error logging**: Separate error logging for troubleshooting
+- **Structured logging**: Uses logrus with configurable levels
 
 ## Configuration Example
 
@@ -61,7 +61,6 @@ telegram:
 settings:
   tolerance: 5                    # Number of failures before notification
   interval: 30                    # Seconds between checks
-  log_file: "/var/log/hostmonitor.log"  # Path to log file
 
 # Targets to monitor (hostnames or IP addresses)
 targets:
@@ -139,14 +138,14 @@ hostmonitor
 
 ### 1. Local Development
 - Config in current directory
-- Local log file
+- Journald logging (when run via systemd) or stdout
 - Easy testing
 
 ### 2. Production Server
 - System-wide binary installation
 - System-wide config in `/opt/hostmonitor/`
 - Systemd service for auto-start
-- Proper log rotation
+- Journald handles log rotation automatically
 
 ### 3. Containerized
 - Docker-friendly (no root required)
@@ -203,8 +202,8 @@ targets:
 
 ### Common Issues
 
-1. **Permission denied for log file**
-   - Solution: Use a writable log file path or run with appropriate permissions
+1. **Permission denied for journald**
+   - Solution: Ensure systemd journal service is running
 
 2. **Telegram token verification failed**
    - Solution: Check token and chat ID in config file

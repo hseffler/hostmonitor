@@ -42,6 +42,7 @@ test:
 install:
 	@echo "Installing $(BINARY_NAME) service..."
 	@mkdir -p $(CONFIG_DIR)
+	rm -f /var/log/hostmonitor.log /var/log/hostmonitor.error.log
 	cp $(BUILD_DIR)/$(BINARY_NAME) $(INSTALL_DIR)/$(BINARY_NAME)
 	cp $(BINARY_NAME).service $(SYSTEMD_DIR)/$(SERVICE_FILE)
 	test -f $(CONFIG_DIR)/hostmonitor.yaml || cp $(EXAMPLE_CONFIG_FILE) $(CONFIG_DIR)/hostmonitor.yaml

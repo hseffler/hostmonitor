@@ -13,9 +13,9 @@ RestartSec=5s
 # Configuration
 Environment=HOSTMONITOR_CONFIG=/opt/hostmonitor/hostmonitor.yaml
 
-# Logging
-StandardOutput=file:/var/log/hostmonitor.log
-StandardError=file:/var/log/hostmonitor.error.log
+# Logging to journald
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target

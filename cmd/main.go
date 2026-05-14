@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -28,9 +27,8 @@ type Config struct {
 		ChatID string `yaml:"chat_id"`
 	} `yaml:"telegram"`
 	Settings struct {
-		Tolerance int    `yaml:"tolerance"`
-		Interval  int    `yaml:"interval"`
-		LogFile   string `yaml:"log_file"`
+		Tolerance int `yaml:"tolerance"`
+		Interval  int `yaml:"interval"`
 	} `yaml:"settings"`
 	Targets []TargetConfig `yaml:"targets"`
 	Ping    struct {
@@ -56,7 +54,6 @@ type Monitor struct {
 	qUp              []string
 	mu               sync.Mutex
 	apiURL           string
-	logFile          *os.File
 	logger          *logrus.Logger
 }
 
@@ -78,7 +75,6 @@ func main() {
 	if err != nil {
 		logrus.Fatalf("Failed to initialize monitor: %v", err)
 	}
-	defer monitor.logFile.Close()
 
 	// Enable verbose logging if requested
 	if *verbose {
@@ -117,9 +113,6 @@ func NewMonitor(configFile string) (*Monitor, error) {
 	if config.Settings.Interval == 0 {
 		config.Settings.Interval = 30
 	}
-	if config.Settings.LogFile == "" {
-		config.Settings.LogFile = "/var/log/hostmonitor.log"
-	}
 	if config.Ping.Count == 0 {
 		config.Ping.Count = 3
 	}
@@ -130,20 +123,15 @@ func NewMonitor(configFile string) (*Monitor, error) {
 		config.Ping.Port = 80
 	}
 
-	// Set up logrus logger
+	// Set up logrus logger with journald output
 	logger := logrus.New()
 	logger.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp:   true,
 		TimestampFormat: "2006-01-02 15:04:05",
+		DisableColors:   true,
 	})
 	logger.SetLevel(logrus.InfoLevel)
-	
-	// Set up file logging
-	logFile, err := os.OpenFile(config.Settings.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open log file: %v", err)
-	}
-	logger.SetOutput(logFile)
+	logger.SetOutput(os.Stdout)
 	
 	// Build port map from targets
 	ports := make(map[string]int)
@@ -156,21 +144,20 @@ func NewMonitor(configFile string) (*Monitor, error) {
 	}
 
 	monitor := &Monitor{
-		config:        *config,
-		tolerance:     config.Settings.Tolerance,
-		timer:         config.Settings.Interval,
-		pingCount:     config.Ping.Count,
-		pingTimeout:   config.Ping.Timeout,
-		defaultPort:   config.Ping.Port,
-		ports:         ports,
-		errCounter:     make(map[string]int),
-		timeDown:       make(map[string]string),
-		timeUp:         make(map[string]string),
-		qDown:          []string{},
-		qUp:            []string{},
-		apiURL:         "https://api.telegram.org/bot" + config.Telegram.Token,
-		logFile:        logFile,
-		logger:        logger,
+		config:       *config,
+		tolerance:    config.Settings.Tolerance,
+		timer:        config.Settings.Interval,
+		pingCount:    config.Ping.Count,
+		pingTimeout:  config.Ping.Timeout,
+		defaultPort:  config.Ping.Port,
+		ports:        ports,
+		errCounter:    make(map[string]int),
+		timeDown:      make(map[string]string),
+		timeUp:        make(map[string]string),
+		qDown:         []string{},
+		qUp:           []string{},
+		apiURL:        "https://api.telegram.org/bot" + config.Telegram.Token,
+		logger:       logger,
 	}
 
 	// Test token (skip for testing)
@@ -185,7 +172,7 @@ func NewMonitor(configFile string) (*Monitor, error) {
 
 // readConfig reads the YAML configuration file
 func readConfig(filename string) (*Config, error) {
-	file, err := ioutil.ReadFile(filename)
+	file, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %v", err)
 	}
@@ -415,10 +402,10 @@ func (m *Monitor) pingTarget(host string, port int) bool {
 			}).Debug("❌ TCP connection attempt failed")
 			continue
 		}
+		defer conn.Close()
 		
 		// If we can establish a connection, the host is reachable
 		successCount++
-		conn.Close()
 		
 		m.logger.WithFields(logrus.Fields{
 			"target": host,
